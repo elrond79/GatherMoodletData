@@ -3,21 +3,19 @@
 '''Gather information about all moodlets, and output as a tsv
 '''
 
-#C:\Apps\DevTools\Python36\Scripts\ipython3.exe "C:\Apps (x86)\Games\XML Extractor for The Sims 4\gather_moodlet_data.py"
-#import runpy; gmd_globals = runpy.run_path("C:\Apps (x86)\Games\XML Extractor for The Sims 4\gather_moodlet_data.py"); globals().update(gmd_globals)
+#C:\Apps\DevTools\Python36\python.exe "C:\Users\paulm\Desktop\GatherMoodletData\gather_moodlet_data.py"
+#import runpy; gmd_globals = runpy.run_path(r"C:\Users\paulm\Desktop\GatherMoodletData\gather_moodlet_data.py"); globals().update(gmd_globals)
 
 import os
 import sys
 import argparse
-import inspect
 import pathlib
 import re
 
 from pathlib import Path
 import xml.etree.ElementTree as ElementTree
 
-THIS_PATH = Path(inspect.getsourcefile(lambda: None)).resolve(strict=True)
-THIS_DIR = THIS_PATH.parent
+DEFAULT_XML_DIR = r"C:\Apps (x86)\Games\XML Extractor for The Sims 4"
 
 # ==============================================================================
 # ElementTree helpers
@@ -174,7 +172,7 @@ def get_parser():
         formatter_class=argparse.ArgumentDefaultsHelpFormatter)
     parser.add_argument('dir',
         help='Base directory to search for moodlet / buff information',
-        nargs="?", default=str(THIS_DIR / "Extracted"))
+        nargs="?", default=DEFAULT_XML_DIR)
     parser.add_argument('output',
         help='Path to output tab-separated-value (.tsv) file',
         nargs="?", default="./md5_hashes.txt")
