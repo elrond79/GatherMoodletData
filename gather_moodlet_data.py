@@ -3,7 +3,7 @@
 '''Gather information about all moodlets, and output as a tsv
 '''
 
-#C:\Apps\DevTools\Python36\python.exe "C:\Users\paulm\Desktop\GatherMoodletData\gather_moodlet_data.py"
+#C:\Apps\DevTools\Python36\python.exe "C:\Users\paulm\Desktop\GatherMoodletData\gather_moodlet_data.py" "C:\Apps (x86)\Games\XML Extractor for The Sims 4\Extracted" "C:\Users\paulm\Desktop\moodlets.tsv"
 #import runpy; gmd_globals = runpy.run_path(r"C:\Users\paulm\Desktop\GatherMoodletData\gather_moodlet_data.py"); globals().update(gmd_globals)
 
 import os
@@ -18,6 +18,25 @@ import xml.etree.ElementTree as ElementTree
 DEFAULT_XML_DIR = r"C:\Apps (x86)\Games\XML Extractor for The Sims 4"
 
 PET_RE = re.compile('_Pets?_|_(Cat|Dog)$')
+
+DATA_KEYS = (
+    'filename',
+    'expansion_dir',
+    'rawname',
+    'icon',
+    'buff_name',
+    'buff_description',
+    'categories',
+    'mood_type',
+    'mood_weight',
+    'duration',
+)
+
+DEFAULT_DATA = {k: None for k in DATA_KEYS}
+DEFAULT_DATA['categories'] = []
+DEFAULT_DATA['mood_weight'] = 1
+
+MOOD_PREFIX = 'Mood_'
 
 # ==============================================================================
 # ElementTree helpers
@@ -54,6 +73,7 @@ def parse_and_output_tsv(basedir, output_path):
     parsed_buffs = parse_buffs(basedir)
     output_tsv(parsed_buffs, output_path)
 
+
 def parse_buffs(basedir):
     basedir = Path(basedir)
     buffs = []
@@ -88,15 +108,9 @@ def get_xml_tree(path):
     return tree.getroot()
 
 def parse_buff_xml(buff_xml):
-    expansion_dir = buff_xml.parent.parent
-    data = {
-        'filename': buff_xml,
-        'expansion_dir': expansion_dir.name,
-        'categories': [],
-        'duration': None,
-        'buff_description': None,
-        'mood_weight': 1,
-    }
+    data = dict(DEFAULT_DATA)
+    data['filename'] = buff_xml
+    data['expansion_dir'] = buff_xml.parent.parent
 
     root = get_xml_tree(buff_xml)
 
@@ -188,6 +202,41 @@ def output_tsv(parsed_buffs, output_path):
     output_path = Path(output_path)
 
     print("outputting tsv to: {}".format(output_path))
+
+    def get_line(buff):
+        data = []
+        for key in DATA_KEYS:
+            val = buff[key]
+            # for the first line, which is headers, this will be a str
+            if key =='expansion_dir' and isinstance(val, pathlib.PurePath):
+                val = val.name
+            elif key == 'mood_type' and val and val.startswith(MOOD_PREFIX):
+                val = val[len(MOOD_PREFIX):]
+            if val is None:
+                val = ''
+            else:
+                val = str(val).replace('\t', '    ')
+            data.append(val)
+        return '\t'.join(data).encode('utf-8')
+
+    with open(output_path, 'wb') as f:
+        header_data = {key: key for key in DATA_KEYS}
+        f.write(get_line(header_data))
+        for buff in parsed_buffs:
+            # according to mime standard for csv:
+            #   https://tools.ietf.org/html/rfc4180#section-2
+            #   2.  The last record in the file may or may not have an ending line break.  For example:
+            #
+            # aaa,bbb,ccc CRLF
+            # zzz,yyy,xxx
+            #
+            # So therefore we write newlines before each line (which works
+            # because we already have our first header line)
+            f.write(b'\r\n')
+            f.write(get_line(buff))
+
+    print("done writing tsv!")
+
 
 def get_parser():
     parser = argparse.ArgumentParser(description=__doc__,
