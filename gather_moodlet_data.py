@@ -179,7 +179,7 @@ def parse_buff_xml(buff_xml):
         data['buff_description'] = get_T_comment('buff_description', 'String',
                                                  allow_none=True)
 
-        if mood_weight:
+        if mood_weight is not None:
             data['mood_weight'] = mood_weight.text
 
         data["rawname"] = root.attrib["n"]
