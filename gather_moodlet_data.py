@@ -17,6 +17,8 @@ import xml.etree.ElementTree as ElementTree
 
 DEFAULT_XML_DIR = r"C:\Apps (x86)\Games\XML Extractor for The Sims 4"
 
+PET_RE = re.compile('_Pets?_|_(Cat|Dog)$')
+
 # ==============================================================================
 # ElementTree helpers
 
@@ -57,10 +59,13 @@ def parse_buffs(basedir):
     buffs = []
     for buff_xml in iter_buff_xmls(basedir):
         try:
-            buffs.append(parse_buff_xml(buff_xml))
+            parsed_buff = parse_buff_xml(buff_xml)
         except Exception:
             print("Error parsing: {}".format(buff_xml))
             raise
+        else:
+            if parsed_buff:
+                buffs.append(parsed_buff)
     return buffs
 
 def iter_buff_xmls(basedir):
@@ -76,6 +81,12 @@ def iter_buff_xmls(basedir):
                 continue
             yield buff_xml
 
+def get_xml_tree(path):
+    parser = ElementTree.XMLParser(target=MyTreeBuilder())
+    with path.open(encoding="utf-8") as f:
+        tree = ElementTree.parse(f, parser=parser)
+    return tree.getroot()
+
 def parse_buff_xml(buff_xml):
     expansion_dir = buff_xml.parent.parent
     data = {
@@ -87,10 +98,7 @@ def parse_buff_xml(buff_xml):
         'mood_weight': 1,
     }
 
-    parser = ElementTree.XMLParser(target=MyTreeBuilder())
-    with buff_xml.open(encoding="utf-8") as f:
-        tree = ElementTree.parse(f, parser=parser)
-    root = tree.getroot()
+    root = get_xml_tree(buff_xml)
 
     def get_T_comment(n, typename, allow_none=False):
         element = root.find("./T[@n='{}']".format(n))
@@ -100,7 +108,15 @@ def parse_buff_xml(buff_xml):
 
     try:
         mood_type = get_T_comment('mood_type', 'Mood', allow_none=True)
-        if mood_type is None:
+        buff_name = get_T_comment('buff_name', 'String', allow_none=True)
+        mood_weight = root.find("./T[@n='mood_weight']")
+        # mood_weight_ok = True
+        # if mood_weight is None:
+        #     # only acceptable if mood is 'fine'!
+        #     if mood_type != 'Mood_Fine':
+        #         mood_weight_ok = False
+
+        if mood_type is None or buff_name is None: # or not mood_weight_ok:
             def is_visible():
                 vis = root.find("./T[@n='visible']")
                 if vis is not None:
@@ -126,21 +142,30 @@ def parse_buff_xml(buff_xml):
                 # elif root.find("./U[@n='game_effect_modifier']//L[@n='score_multipliers']"):
                 #     known = True
                 known = True
+            elif PET_RE.search(root.attrib.get('n', '')):
+                known = True
 
             if not known:
                 print("=" * 80)
-                print("skipping (no mood): {}".format(buff_xml))
+                descs = []
+                for test_val, desc in [(mood_type, 'no mood'),
+                                       (buff_name, 'no buff_name'),
+                                       #(mood_weight_ok, 'no mood_weight'),
+                                       ]:
+                    if not test_val:
+                        descs.append(desc)
+                desc = ' and '.join(descs)
+                print(f"skipping ({desc}): {buff_xml}")
                 print(ElementTree.dump(root))
                 print()
             return None
 
         data['mood_type'] = mood_type
-        mood_weight = root.find("./T[@n='mood_weight']")
-        if mood_weight is None:
-            # only acceptable if mood is 'fine'!
-            if mood_type != 'Mood_Fine':
-                raise RuntimeError("no mood_weight only allowed if mood is fine")
-        else:
+        data['buff_name'] = buff_name
+        data['buff_description'] = get_T_comment('buff_description', 'String',
+                                                 allow_none=True)
+
+        if mood_weight:
             data['mood_weight'] = mood_weight.text
 
         data["rawname"] = root.attrib["n"]
@@ -153,9 +178,6 @@ def parse_buff_xml(buff_xml):
             if duration is not None:
                 data['duration'] = duration.text
         data['icon'] = root.find("./T[@n='icon']").attrib["p"]
-        data['buff_name'] = get_T_comment('buff_name', 'String')
-        data['buff_description'] = get_T_comment('buff_description', 'String',
-                                                 allow_none=True)
     except Exception:
         print(buff_xml)
         print(ElementTree.dump(root))
